@@ -40,6 +40,14 @@ async function run() {
       const result = await productsCollection.insertOne(prompt);
       res.send(result);
     });
+     app.get("/api/product", async (req, res) => {
+      try {
+        const result = await productsCollection.find().toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch prompts" });
+      }
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log("MongoDB Connected Successfully");
