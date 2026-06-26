@@ -150,6 +150,15 @@ async function run() {
       }
     });
 
+    app.get("/api/products/admin/all", async (req, res) => {
+      try {
+      const result = await productsCollection.find().sort({ createdAt: -1 }).toArray();
+      res.send(result);
+     } catch (error) {
+      res.status(500).send({ message: "Failed to fetch products for admin" });
+     }
+     });
+
     // GET single product
     app.get("/api/products/:id", async (req, res) => {
       try {
