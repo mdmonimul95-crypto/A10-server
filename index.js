@@ -360,7 +360,18 @@ async function run() {
     });
 
     // POST add review
-  
+      app.post("/api/reviews", async (req, res) => {
+      try {
+        const review = req.body;
+        const result = await reviewsCollection.insertOne({
+          ...review,
+          createdAt: new Date(),
+        });
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to add review" });
+      }
+    });
 
     // ==================== STATS ====================
 
