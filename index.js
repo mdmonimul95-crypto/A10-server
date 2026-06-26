@@ -86,6 +86,29 @@ async function run() {
         res.status(500).send({ message: "Failed to create user" });
       }
     });
+    // PATCH update buyer profile
+app.patch("/api/users/profile/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+    const { name, phone, location, image } = req.body;
+
+    const result = await usersCollection.updateOne(
+      { email },
+      {
+        $set: {
+          name,
+          phone,
+          location,
+          image,
+        },
+      }
+    );
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to update profile" });
+  }
+});
 
     // PATCH update user status (admin block/unblock)
     app.patch("/api/users/:id/status", async (req, res) => {
