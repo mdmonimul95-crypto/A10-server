@@ -180,7 +180,7 @@ async function run() {
         const product = req.body;
         const result = await productsCollection.insertOne({
           ...product,
-          status: "available",
+           status: "pending",
           createdAt: new Date(),
         });
         res.send(result);
