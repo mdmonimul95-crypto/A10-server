@@ -57,62 +57,32 @@ async function run() {
       }
     });
 
+    // ✅ PATCH profile — GET /:email এর আগে
     app.patch("/api/users/profile/:email", async (req, res) => {
-  try {
-    const email = req.params.email;
-    const { name, phone, location, image } = req.body;
-
-    const result = await usersCollection.updateOne(
-      { email },
-      {
-        $set: {
-          name,
-          phone,
-          location,
-          image,
-        },
-      }
-    );
-
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: "Failed to update profile" });
-  }
-});
-
-    // GET single user by email
-    app.get("/api/users/:email", async (req, res) => {
       try {
         const email = req.params.email;
-        const result = await usersCollection.findOne({ email });
+        const { name, phone, location, image, role } = req.body;
+
+        const result = await usersCollection.updateOne(
+          { email },
+          {
+            $set: {
+              name,
+              phone,
+              location,
+              image,
+              ...(role && { role }),
+            },
+          }
+        );
+
         res.send(result);
       } catch (error) {
-        res.status(500).send({ message: "Failed to fetch user" });
+        res.status(500).send({ message: "Failed to update profile" });
       }
     });
 
-    // POST create user
-    app.post("/api/users", async (req, res) => {
-      try {
-        const user = req.body;
-        const existing = await usersCollection.findOne({ email: user.email });
-        if (existing) {
-          return res.send({ message: "User already exists" });
-        }
-        const result = await usersCollection.insertOne({
-          ...user,
-          status: "active",
-          createdAt: new Date(),
-        });
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to create user" });
-      }
-    });
-    // PATCH update buyer profile
-
-
-    // PATCH update user status (admin block/unblock)
+    // ✅ PATCH status — GET /:email এর আগে
     app.patch("/api/users/:id/status", async (req, res) => {
       try {
         const id = req.params.id;
@@ -127,7 +97,7 @@ async function run() {
       }
     });
 
-    // PATCH update user role (admin)
+    // ✅ PATCH role — GET /:email এর আগে
     app.patch("/api/users/:id/role", async (req, res) => {
       try {
         const id = req.params.id;
@@ -142,20 +112,60 @@ async function run() {
       }
     });
 
-    // DELETE user (admin)
+    // ✅ DELETE — GET /:email এর আগে
     app.delete("/api/users/:id", async (req, res) => {
       try {
         const id = req.params.id;
-        const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
+        const result = await usersCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
         res.send(result);
       } catch (error) {
         res.status(500).send({ message: "Failed to delete user" });
       }
     });
 
+    // POST create or update user (upsert)
+    app.post("/api/users", async (req, res) => {
+      try {
+        const user = req.body;
+        const result = await usersCollection.updateOne(
+          { email: user.email },
+          {
+            $set: {
+              name: user.name,
+              email: user.email,
+              image: user.image || "",
+              role: user.role || "buyer",
+              phone: user.phone || "",
+              location: user.location || "",
+              status: "active",
+            },
+            $setOnInsert: {
+              createdAt: new Date(),
+            },
+          },
+          { upsert: true }
+        );
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to create user" });
+      }
+    });
+
+    // ✅ GET single user — সবার শেষে
+    app.get("/api/users/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const result = await usersCollection.findOne({ email });
+        res.send(result || {});
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch user" });
+      }
+    });
+
     // ==================== PRODUCTS ====================
 
-    // GET all products
     app.get("/api/products", async (req, res) => {
       try {
         const { category, condition, search, sort } = req.query;
@@ -174,34 +184,29 @@ async function run() {
         if (sort === "price_asc") sortOption = { price: 1 };
         if (sort === "price_desc") sortOption = { price: -1 };
 
-        const result = await productsCollection.find(query).sort(sortOption).toArray();
+        const result = await productsCollection
+          .find(query)
+          .sort(sortOption)
+          .toArray();
         res.send(result);
       } catch (error) {
         res.status(500).send({ message: "Failed to fetch products" });
       }
     });
 
+    // ✅ specific routes আগে
     app.get("/api/products/admin/all", async (req, res) => {
       try {
-      const result = await productsCollection.find().sort({ createdAt: -1 }).toArray();
-      res.send(result);
-     } catch (error) {
-      res.status(500).send({ message: "Failed to fetch products for admin" });
-     }
-     });
-
-    // GET single product
-    app.get("/api/products/:id", async (req, res) => {
-      try {
-        const id = req.params.id;
-        const result = await productsCollection.findOne({ _id: new ObjectId(id) });
+        const result = await productsCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .toArray();
         res.send(result);
       } catch (error) {
-        res.status(500).send({ message: "Failed to fetch product" });
+        res.status(500).send({ message: "Failed to fetch products for admin" });
       }
     });
 
-    // GET seller's own products
     app.get("/api/products/seller/:email", async (req, res) => {
       try {
         const email = req.params.email;
@@ -214,37 +219,6 @@ async function run() {
       }
     });
 
-    // POST add product (seller)
-    app.post("/api/products", async (req, res) => {
-      try {
-        const product = req.body;
-        const result = await productsCollection.insertOne({
-          ...product,
-           status: "pending",
-          createdAt: new Date(),
-        });
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to add product" });
-      }
-    });
-
-    // PATCH update product (seller)
-    app.patch("/api/products/:id", async (req, res) => {
-      try {
-        const id = req.params.id;
-        const updates = req.body;
-        const result = await productsCollection.updateOne(
-          { _id: new ObjectId(id) },
-          { $set: updates }
-        );
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to update product" });
-      }
-    });
-
-    // PATCH product status (admin approve/reject)
     app.patch("/api/products/:id/status", async (req, res) => {
       try {
         const id = req.params.id;
@@ -259,20 +233,61 @@ async function run() {
       }
     });
 
-    // DELETE product
+    app.patch("/api/products/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updates = req.body;
+        const result = await productsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updates }
+        );
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to update product" });
+      }
+    });
+
     app.delete("/api/products/:id", async (req, res) => {
       try {
         const id = req.params.id;
-        const result = await productsCollection.deleteOne({ _id: new ObjectId(id) });
+        const result = await productsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
         res.send(result);
       } catch (error) {
         res.status(500).send({ message: "Failed to delete product" });
       }
     });
 
+    app.post("/api/products", async (req, res) => {
+      try {
+        const product = req.body;
+        const result = await productsCollection.insertOne({
+          ...product,
+          status: "pending",
+          createdAt: new Date(),
+        });
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to add product" });
+      }
+    });
+
+    // ✅ GET single product — শেষে
+    app.get("/api/products/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const result = await productsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch product" });
+      }
+    });
+
     // ==================== ORDERS ====================
 
-    // GET all orders (admin)
     app.get("/api/orders", async (req, res) => {
       try {
         const result = await ordersCollection.find().toArray();
@@ -282,7 +297,6 @@ async function run() {
       }
     });
 
-    // GET buyer's orders
     app.get("/api/orders/buyer/:email", async (req, res) => {
       try {
         const email = req.params.email;
@@ -295,7 +309,6 @@ async function run() {
       }
     });
 
-    // GET seller's orders
     app.get("/api/orders/seller/:email", async (req, res) => {
       try {
         const email = req.params.email;
@@ -308,7 +321,6 @@ async function run() {
       }
     });
 
-    // POST create order
     app.post("/api/orders", async (req, res) => {
       try {
         const order = req.body;
@@ -323,7 +335,6 @@ async function run() {
       }
     });
 
-    // PATCH update order status
     app.patch("/api/orders/:id/status", async (req, res) => {
       try {
         const id = req.params.id;
@@ -340,7 +351,6 @@ async function run() {
 
     // ==================== PAYMENTS ====================
 
-    // GET all payments (admin)
     app.get("/api/payments", async (req, res) => {
       try {
         const result = await paymentsCollection.find().toArray();
@@ -350,7 +360,6 @@ async function run() {
       }
     });
 
-    // GET buyer's payments
     app.get("/api/payments/buyer/:email", async (req, res) => {
       try {
         const email = req.params.email;
@@ -363,7 +372,6 @@ async function run() {
       }
     });
 
-    // POST save payment
     app.post("/api/payments", async (req, res) => {
       try {
         const payment = req.body;
@@ -372,7 +380,6 @@ async function run() {
           createdAt: new Date(),
         });
 
-        // update order payment status
         await ordersCollection.updateOne(
           { _id: new ObjectId(payment.orderId) },
           { $set: { paymentStatus: "paid" } }
@@ -386,21 +393,17 @@ async function run() {
 
     // ==================== REVIEWS ====================
 
-    // GET product reviews
     app.get("/api/reviews/:productId", async (req, res) => {
       try {
         const productId = req.params.productId;
-        const result = await reviewsCollection
-          .find({ productId })
-          .toArray();
+        const result = await reviewsCollection.find({ productId }).toArray();
         res.send(result);
       } catch (error) {
         res.status(500).send({ message: "Failed to fetch reviews" });
       }
     });
 
-    // POST add review
-      app.post("/api/reviews", async (req, res) => {
+    app.post("/api/reviews", async (req, res) => {
       try {
         const review = req.body;
         const result = await reviewsCollection.insertOne({
@@ -415,34 +418,6 @@ async function run() {
 
     // ==================== WISHLIST ====================
 
-    // GET buyer's wishlist (with product details populated)
-    app.get("/api/wishlist/:email", async (req, res) => {
-      try {
-        const email = req.params.email;
-        const wishlistItems = await wishlistCollection
-          .find({ buyerEmail: email })
-          .toArray();
-
-        // populate product info for each wishlist item
-        const populated = await Promise.all(
-          wishlistItems.map(async (item) => {
-            const product = await productsCollection.findOne({
-              _id: new ObjectId(item.productId),
-            });
-            return {
-              ...item,
-              product,
-            };
-          })
-        );
-
-        res.send(populated);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to fetch wishlist" });
-      }
-    });
-
-    // GET check if a product is already in buyer's wishlist
     app.get("/api/wishlist/check/:email/:productId", async (req, res) => {
       try {
         const { email, productId } = req.params;
@@ -456,7 +431,41 @@ async function run() {
       }
     });
 
-    // POST add product to wishlist
+    app.delete("/api/wishlist/:email/:productId", async (req, res) => {
+      try {
+        const { email, productId } = req.params;
+        const result = await wishlistCollection.deleteOne({
+          buyerEmail: email,
+          productId,
+        });
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to remove from wishlist" });
+      }
+    });
+
+    app.get("/api/wishlist/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const wishlistItems = await wishlistCollection
+          .find({ buyerEmail: email })
+          .toArray();
+
+        const populated = await Promise.all(
+          wishlistItems.map(async (item) => {
+            const product = await productsCollection.findOne({
+              _id: new ObjectId(item.productId),
+            });
+            return { ...item, product };
+          })
+        );
+
+        res.send(populated);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch wishlist" });
+      }
+    });
+
     app.post("/api/wishlist", async (req, res) => {
       try {
         const { buyerEmail, productId } = req.body;
@@ -486,7 +495,6 @@ async function run() {
       }
     });
 
-    // DELETE remove product from wishlist (by wishlist document id)
     app.delete("/api/wishlist/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -498,32 +506,70 @@ async function run() {
         res.status(500).send({ message: "Failed to remove from wishlist" });
       }
     });
+    
 
-    // DELETE remove product from wishlist (by buyerEmail + productId)
-    app.delete("/api/wishlist/:email/:productId", async (req, res) => {
-      try {
-        const { email, productId } = req.params;
-        const result = await wishlistCollection.deleteOne({
-          buyerEmail: email,
-          productId,
-        });
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to remove from wishlist" });
-      }
+    // ==================== REPORTS ====================
+
+const reportsCollection = db.collection("reports");
+
+// GET all reports (admin)
+app.get("/api/reports", async (req, res) => {
+  try {
+    const result = await reportsCollection
+      .find()
+      .sort({ createdAt: -1 })
+      .toArray();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to fetch reports" });
+  }
+});
+
+// POST create report
+app.post("/api/reports", async (req, res) => {
+  try {
+    const report = req.body;
+    const result = await reportsCollection.insertOne({
+      ...report,
+      status: "pending",
+      createdAt: new Date(),
     });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to create report" });
+  }
+});
 
+// PATCH update report status
+app.patch("/api/reports/:id/status", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { status } = req.body;
+    const result = await reportsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status } }
+    );
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to update report status" });
+  }
+});
     // ==================== STATS ====================
 
-    // GET platform stats (admin/home)
     app.get("/api/stats", async (req, res) => {
       try {
         const totalUsers = await usersCollection.countDocuments();
         const totalProducts = await productsCollection.countDocuments();
         const totalOrders = await ordersCollection.countDocuments();
-        const totalSellers = await usersCollection.countDocuments({ role: "seller" });
-        const totalBuyers = await usersCollection.countDocuments({ role: "buyer" });
-        const completedOrders = await ordersCollection.countDocuments({ orderStatus: "Delivered" });
+        const totalSellers = await usersCollection.countDocuments({
+          role: "seller",
+        });
+        const totalBuyers = await usersCollection.countDocuments({
+          role: "buyer",
+        });
+        const completedOrders = await ordersCollection.countDocuments({
+          orderStatus: "Delivered",
+        });
 
         res.send({
           totalUsers,
@@ -537,7 +583,6 @@ async function run() {
         res.status(500).send({ message: "Failed to fetch stats" });
       }
     });
-
   } catch (error) {
     console.log(error);
   }
