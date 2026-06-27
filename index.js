@@ -554,6 +554,68 @@ app.patch("/api/reports/:id/status", async (req, res) => {
     res.status(500).send({ message: "Failed to update report status" });
   }
 });
+
+
+// ==================== CATEGORIES ====================
+
+// GET product counts grouped by category
+app.get("/api/categories", async (req, res) => {
+  try {
+    const result = await productsCollection.aggregate([
+      { $match: { status: "available" } },
+      { $group: { _id: "$category", count: { $sum: 1 } } },
+      { $project: { category: "$_id", count: 1, _id: 0 } },
+    ]).toArray();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to fetch categories" });
+  }
+});
+
+
+// ==================== TRUSTED SELLERS ====================
+
+app.get("/api/sellers/top", async (req, res) => {
+  try {
+    const sellers = await usersCollection
+      .find({ role: "seller", status: "active" })
+      .toArray();
+
+    const sellersWithStats = await Promise.all(
+      sellers.map(async (seller) => {
+        const totalProducts = await productsCollection.countDocuments({
+          "sellerInfo.email": seller.email,
+          status: "available",
+        });
+
+        const completedOrders = await ordersCollection.countDocuments({
+          "sellerInfo.email": seller.email,
+          orderStatus: "Delivered",
+        });
+
+        return {
+          _id: seller._id,
+          name: seller.name,
+          email: seller.email,
+          image: seller.image || "",
+          location: seller.location || "",
+          totalProducts,
+          completedOrders,
+          verified: seller.verified || false,
+        };
+      })
+    );
+
+    // completed orders বেশি যার সে আগে
+    const top = sellersWithStats
+      .sort((a, b) => b.completedOrders - a.completedOrders)
+      .slice(0, 6);
+
+    res.send(top);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to fetch top sellers" });
+  }
+});
     // ==================== STATS ====================
 
     app.get("/api/stats", async (req, res) => {
