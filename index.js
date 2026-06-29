@@ -8,16 +8,14 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(
-  cors({
-    origin: "http://localhost:3000",
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: ["http://localhost:3000", "https://a10-forntend.vercel.app"],
+  credentials: true,
+}));
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("ReSell Hub Server Running!");
+  res.send("ReSell Hub Server Running!!");
 });
 
 const uri = process.env.MONGODB_URI;
